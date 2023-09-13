@@ -11,41 +11,54 @@ import tkinter as tk
 import cv2
 # so we can run the video streaming and the program itself without any noticable lag
 import threading
-# used so we dont hard code sub components in so that if the sub were to ever change, it would not call for a huge code re-write
-from dataclasses import dataclass
 # imported to handle images
 from PIL import ImageTk, Image
+# imported to handle the config file
+import json
+# imported for the orin ssh connection
+import fabric
 
+
+
+# ================= CONFIG =================
+PARENT_PATH = __file__.split("GCS.py")[0]
+
+f = open(PARENT_PATH+'config.json')
+config = json.load(f)
+
+BATTERY_COUNT = config["ROBOT"]["BATTERY_COUNT"] or 4
+MOTOR_COUNT = config["ROBOT"]["MOTOR_COUNT"] or 8
+SERVO_COUNT = config["ROBOT"]["SERVO_COUNT"] or 2
+ICON_PATH = config["GCS"]["ICON_PATH"] or ""
+
+f.close()
 
 # ================= VARIABLES =================
 
-#SETTINGS
-training: bool = False
-manual_control: bool = False
-autonomous_control: bool = False
-BATTERY_COUNT: int = 4
-MOTOR_COUNT: int = 8
-SERVO_COUNT: int = 2
-ICON_PATH: str = ""
+# VARIABLE SETTINGS
+training_sim = False
+training_real_world = False
+manual_control = False
+autonomous_control = False
 
 #INPUTS
-camera_input = cv2.VideoCapture(0)
+web_camera_input = cv2.VideoCapture(0)
+depth_camera_input = ...
 button_input = ...
 controller_input = ...
 sonar_input = ...
 
-#CONSTANTS
+# CONSTANTS
 WINDOW: object = tk.Tk()
 PPI: int = WINDOW.winfo_pixels("1i")
 
+# SUB ENVIORMENT STATS
+depth: int = tk.IntVar()
+humidity: int = tk.IntVar()
+tube_temp: int = tk.IntVar()
+orin_temp: int = tk.IntVar()
 
-#SUB ENVIORMENT STATS
-depth: int = 0
-humidity: int = 0
-tube_temp: int = 0
-orin_temp: int = 0
-
-#ORIN
+# ORIN
 orin_ip: str = tk.StringVar()
 orin_port: int = tk.IntVar()
 orin_user: str = tk.StringVar()
@@ -53,39 +66,34 @@ orin_pass: str = tk.StringVar()
 orin_connected: bool = False
 
 
-# ================= SUB DATACLASSES =================
+# ================= SUB PART CLASSES =================
 
-#Created all of these as classes so it is for mechanical / eletrical to add / remove these parts if needed
-
-#using @dataclass to declare that this class is a dataclass and not a normal class
-@dataclass
-class Battery:
-    
-    # Attribute Declaratrions using Type Hints
-    label_object: object
-    value_object: object
-    voltage: int = 0
-    amps: int = 0
+class Battery():
+    def __init__(self, label_object, value_object):
+        self.label_object = label_object 
+        self.value_object = value_object
+        self.voltage = tk.IntVar()
+        self.amps = tk.IntVar()
     
     def update_value(self):
         self.value_object.text = str(self.voltage)+" / "+str(self.amps)
     
 
-@dataclass
-class Motor:
-    label_object: object # object that displays the name of the motor, ex "Motor 1"
-    value_object: object # object that displays the pwm of the motor
-    pwm: int = tk.IntVar()
+class Motor():
+    def __init__(self, label_object, value_object):
+        self.label_object = label_object # object that displays the name of the motor, ex "Motor 1"
+        self.value_object = value_object # object that displays the pwm of the motor
+        self.pwm = tk.IntVar()
     
     def update_value(self):
         self.pwm.set(3)
         self.value_object.text = "3"
 
-@dataclass
-class Servo:
-    label_object: object
-    value_object: object
-    pwm: tk.IntVar() = 0
+class Servo():
+    def __init__(self, label_object, value_object):
+        self.label_object = label_object 
+        self.value_object = value_object
+        self.pwm = tk.IntVar()
     
     def update_value(self):
         self.value_object.text = self.pwm
@@ -223,7 +231,7 @@ button_frame.grid(sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady =
 
 def stream_video():
     #read the data and seperate it into its index, and frame (we don't need the index so its just an _)
-    _, frame = camera_input.read()
+    _, frame = web_camera_input.read()
     cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
     #turn it into an image :O
     img = Image.fromarray(cv2image)
