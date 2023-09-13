@@ -1,7 +1,6 @@
 
 #TODO: Make the motor pwm actually update when changed, LINE 182
 
-#TODO: Make the motor placement look a bit nicer, maybe not so verticle
 #TODO: create both the modular servo creation and battery creation
 
 # ================= IMPORTS =================
@@ -21,47 +20,37 @@ from PIL import ImageTk, Image
 # ================= VARIABLES =================
 
 #SETTINGS
-training = False
-manual_control = False
-autonomous_control = False
-BATTERY_COUNT = 4
-MOTOR_COUNT = 8
-SERVO_COUNT = 2
+training: bool = False
+manual_control: bool = False
+autonomous_control: bool = False
+BATTERY_COUNT: int = 4
+MOTOR_COUNT: int = 8
+SERVO_COUNT: int = 2
+ICON_PATH: str = ""
 
 #INPUTS
-dual_camera_input = ...
+camera_input = cv2.VideoCapture(0)
 button_input = ...
 controller_input = ...
-cap = cv2.VideoCapture(0)
 sonar_input = ...
 
 #CONSTANTS
-WINDOW = tk.Tk()
-PPI = WINDOW.winfo_pixels("1i")
+WINDOW: object = tk.Tk()
+PPI: int = WINDOW.winfo_pixels("1i")
+
 
 #SUB ENVIORMENT STATS
-depth = 0
-humidity = 0
-tube_temp = 0
-orin_temp = 0
+depth: int = 0
+humidity: int = 0
+tube_temp: int = 0
+orin_temp: int = 0
 
 #ORIN
-orin_ip = tk.StringVar()
-orin_port = tk.IntVar()
-orin_user = tk.StringVar()
-orin_pass = tk.StringVar()
-orin_connected = False
-
-
-# ================= WINDOW FUNCTIONS =================
-
-def get_window_size():
-    WINDOW.update_idletasks()
-    width = WINDOW.winfo_width()
-    height = WINDOW.winfo_height()
-    print(f"Window size: {width}x{height}")
-    
-# function for video streaming
+orin_ip: str = tk.StringVar()
+orin_port: int = tk.IntVar()
+orin_user: str = tk.StringVar()
+orin_pass: str = tk.StringVar()
+orin_connected: bool = False
 
 
 # ================= SUB DATACLASSES =================
@@ -105,11 +94,11 @@ class Servo:
 # ================= SUB COMMANDS =================
 
 def connect_orin(username, password, ip, port):
-    return
+    orin_connected = True
 
 def disconnect_orin():
     if orin_connected:
-        return
+        orin_connected = False
     
 #Start the subs program for the competition
 def start_sub_program():
@@ -142,7 +131,8 @@ def write_config():
 
 # WINDOW SETTINGS
 WINDOW.title("Ground Control Station")
-WINDOW.geometry("600x450")
+#WINDOW.iconphoto(True, tk.PhotoImage(file=ICON_PATH))
+
 WINDOW.columnconfigure(1, weight=1, minsize=250)
 WINDOW.rowconfigure(0, weight=1, minsize=100)
 WINDOW.rowconfigure(1, weight=1, minsize=100)
@@ -156,7 +146,7 @@ video_frame = tk.Frame(WINDOW, bg="limegreen")
 video_frame.grid(row = 0, column = 1, rowspan=2, sticky = "nsew", padx=2, pady=2)
 
 radar_frame = tk.Frame(WINDOW, bg="yellow")
-radar_frame.grid(row = 0, column = 0, sticky="nsew", rowspan=1, padx=2, pady=2)
+radar_frame.grid(row = 0, column = 0, sticky="nsew", padx=2, pady=2)
 
 data_display_frame = tk.Frame(WINDOW, bg = "dodgerblue")
 data_display_frame.grid(row = 1, column = 0, rowspan = 2, sticky = "nsew", padx=2, pady=2)
@@ -175,7 +165,7 @@ orin_ip_label = tk.Label(orin_frame, text="IP:")
 orin_ip_input = tk.Entry(orin_frame, width=30, textvariable=orin_ip)
 orin_port_label = tk.Label(orin_frame, text="Port:")
 orin_port_input = tk.Entry(orin_frame, width=30, textvariable=orin_port)
-connect_button = tk.Button(orin_frame, text="Connect", command=get_window_size)
+connect_button = tk.Button(orin_frame, text="Connect", command=connect_orin)
 
 orin_label.grid(row = 0, column=0, sticky = "nsew", rowspan = 1, columnspan = 2, padx = 5, pady = 5, ipadx = 3, ipady = 3)
 orin_user_label.grid(row = 1, column=0, sticky = "e", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
@@ -190,26 +180,39 @@ connect_button.grid(row = 5, column=0, sticky = "nsew", rowspan = 1, columnspan 
 
 # VIDEO FRAME WIDGETS
 video_display = tk.Label(video_frame)
-
-video_display.grid(sticky = "nsew", rowspan = 1, columnspan = 2, padx = 5, pady = 5, ipadx = 3, ipady = 3)
+video_display.grid(sticky = "nsew", rowspan = 1, columnspan = 2)
 
 # RADAR FRAME WIDGETS
 radar_display = tk.Label(radar_frame)
-
-radar_display.grid(sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
+radar_display.grid(sticky = "nsew", rowspan = 1, columnspan = 1)
+radar_display.config(width=50, height=21, bg="yellow")
 
 
 # DATA DISPLAY
+batteries = []
 motors = []
+servos = []
 
-servo_display_widgets = []
-battery_display_widgets = []
+for i in range(BATTERY_COUNT):
+    batteries.append(Battery(label_object=tk.Label(data_display_frame, text="Battery "+str(i)+":"), value_object=tk.Label(data_display_frame, text="0")))
+    batteries[i].label_object.grid(row = i-(i%2), column=1+(i%2*2), sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
+    batteries[i].value_object.grid(row = i-(i%2), column=2+(i%2*2), sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
+    #batteries[i].update_value()
 
-for i in range(MOTOR_COUNT):
-    motors.append(Motor(label_object=tk.Label(data_display_frame, text="Motor: "+str(i)), value_object=tk.Label(data_display_frame, text="0")))#
-    motors[i].label_object.grid(row = i-(i%2), column=1+(i%2*2), sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
-    motors[i].value_object.grid(row = i-(i%2), column=2+(i%2*2), sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
-    motors[i].update_value()
+for i in range(BATTERY_COUNT, BATTERY_COUNT+MOTOR_COUNT):
+    count = i-BATTERY_COUNT
+    motors.append(Motor(label_object=tk.Label(data_display_frame, text="Motor "+str(count)+":"), value_object=tk.Label(data_display_frame, text="0")))
+    motors[count].label_object.grid(row = i-(i%2), column=1+(i%2*2), sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
+    motors[count].value_object.grid(row = i-(i%2), column=2+(i%2*2), sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
+    #motors[i].update_value()
+    
+print(3*"=")
+for i in range(BATTERY_COUNT+MOTOR_COUNT, BATTERY_COUNT+MOTOR_COUNT+SERVO_COUNT):
+    count = i-(BATTERY_COUNT+MOTOR_COUNT)
+    servos.append(Servo(label_object=tk.Label(data_display_frame, text="Servo "+str(count)+":"), value_object=tk.Label(data_display_frame, text="0")))
+    servos[count].label_object.grid(row = i-(i%2), column=1+(i%2*2), sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
+    servos[count].value_object.grid(row = i-(i%2), column=2+(i%2*2), sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady = 5, ipadx = 3, ipady = 3)
+    #servos[i].update_value()
     
 # BUTTON FRAME
 button_frame = tk.Label(button_frame)
@@ -220,7 +223,7 @@ button_frame.grid(sticky = "nsew", rowspan = 1, columnspan = 1, padx = 5, pady =
 
 def stream_video():
     #read the data and seperate it into its index, and frame (we don't need the index so its just an _)
-    _, frame = cap.read()
+    _, frame = camera_input.read()
     cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
     #turn it into an image :O
     img = Image.fromarray(cv2image)
@@ -242,7 +245,7 @@ def close_application():
     #close the started thread
     VIDEO_THREAD.join()
     #make sure the orin is logged out of
-    disconnect_orin()
+    #disconnect_orin()
     #destroy the window, since we are overriding the origional functionality
     WINDOW.destroy()
 
