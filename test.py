@@ -47,3 +47,63 @@ def hydrophone_triangulation(left_time, front_time, right_time):
     return (x, true_heading)
 
 print(hydrophone_triangulation(0.00067, 0.0011547, 0.00133))
+
+def tim_sort(arr, min_merge = 1):
+    n = len(arr)
+    
+    r = 0
+    while n >= min_merge:
+        r |= n & 1
+        n >>= 1
+        
+    minRun = n + r
+
+    for left in range(0, n, minRun):
+        right = min(left + minRun - 1, n - 1)
+        
+        for i in range(left + 1, right + 1):
+            j = i
+            
+            while j > left and arr[j] < arr[j - 1]:
+                arr[j], arr[j - 1] = arr[j - 1], arr[j]
+                j -= 1
+
+    size = minRun
+    while size < n:
+        for l in range(0, n, 2 * size):
+            m = min(n - 1, l + size - 1)
+            r = min((l + 2 * size - 1), (n - 1))
+            
+            if m < r:
+                len1, len2 = m - l + 1, r - m
+                left, right = [], []
+                
+                for i in range(0, len1):
+                    left.append(arr[l + i])
+                    
+                for i in range(0, len2):
+                    right.append(arr[m + 1 + i])
+                    
+                i, j, k = 0, 0, l
+                while i < len1 and j < len2:
+                    if left[i] <= right[j]:
+                        arr[k] = left[i]
+                        i += 1
+                    else:
+                        arr[k] = right[j]
+                        j += 1
+                    k += 1
+
+                while i < len1:
+                    arr[k] = left[i]
+                    k += 1
+                    i += 1
+
+                while j < len2:
+                    arr[k] = right[j]
+                    k += 1
+                    j += 1
+                    
+        size = 2 * size
+        
+    return arr
