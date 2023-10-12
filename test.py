@@ -107,3 +107,17 @@ def tim_sort(arr, min_merge = 1):
         size = 2 * size
         
     return arr
+    
+def num_sort(arr):
+    a = []
+    for i in arr:
+        if type(a[int(i)]) != "list":
+            a[int(i)] = []
+        a[int(i)].append(i)
+        
+    b = []
+    for x in a:
+        for y in x:
+            if y > 1:
+                b.append(y)
+    return b
