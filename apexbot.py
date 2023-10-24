@@ -27,6 +27,8 @@ school_database = {
     }
 }
 
+admins = []
+
 # Non-Admin Commands
 @bot.command()
 async def get(ctx, captain):
@@ -83,11 +85,11 @@ async def drop(ctx):
     
     removed = False
     try:
-        test.pop(ctx.author)
+        del in_queue[ctx.author]
     except KeyError:
         for num, contestants in lobbies.items():
             try:
-                contestants.pop(ctx.author)
+                del contestants[ctx.author]
                 removed = True
                 break
             except KeyError:
@@ -145,11 +147,11 @@ async def remove(ctx, school, team):
         
     if school in school_database:
         if team == "":
-            school_database.pop(school)
+            del school_database[school]
             print("school removed")
         else:
             if team in school_database[school]:
-                school_database[school].pop(team)
+                del school_database[school][team]
                 print("team removed")
             else:
                 print("team not found")
@@ -192,6 +194,27 @@ async def fdrop(ctx, captain):
     #the captain paramater should be the user who added them to the queue through the !add command, otherwise it is the first player in their team
         #ex. !fadd KSU Black @user1 @user2 @user3
         #since there is no team capatin (they were added by an admin) it would default to user1
+        
+    captain = ctx.author.id
+    
+    if type(captain) != int:
+        captain = captain.id
+    
+    removed = False
+    try:
+        del in_queue[captain]
+    except KeyError:
+        for num, contestants in lobbies.items():
+            try:
+                del contestants[captain]
+                removed = True
+                break
+            except KeyError:
+                pass
+    
+    if not removed:
+        print("couldn't find team")
+    
     pass
 
 @bot.command()
@@ -202,11 +225,27 @@ async def roll(ctx):
 @bot.command()
 async def op(ctx, user):
     #allows the specified user to use admin commands
+    
+    if ctx.author.id in admins:
+        
+        if type(user) != int:
+            user = user.id
+        
+        admins.append(user)
+        
     pass
 
 @bot.command()
 async def deop(ctx, user):
     #disallows the specified user from using admin commands
+    
+    if ctx.author.id in admins:
+        
+        if type(user) != int:
+            user = user.id
+        
+        admins.remove(user)
+    
     pass
 
 bot.add_command(register)
