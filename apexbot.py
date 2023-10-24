@@ -1,8 +1,13 @@
+import os
 import discord
+from dotenv import load_dotenv
 from discord.ext import commands
 
 intents = discord.Intents.default()
 intents.message_content = True
+
+load_dotenv()
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
@@ -255,3 +260,5 @@ bot.add_command(fdrop)
 bot.add_command(roll)
 bot.add_command(op)
 bot.add_command(deop)
+
+bot.run(TOKEN)
