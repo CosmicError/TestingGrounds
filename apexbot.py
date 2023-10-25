@@ -1,3 +1,7 @@
+
+#TODO: finish the replace command
+#TODO: mass allow updating by reading from a database and updating it based on that (csv goes to database that the bot reads and updates values based on it)
+
 import os
 import discord
 from dotenv import load_dotenv
