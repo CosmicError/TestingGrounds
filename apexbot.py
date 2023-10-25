@@ -7,191 +7,280 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
-
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 bot = commands.Bot(command_prefix='!', intents=intents)
+elo_gains = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9]
 
-in_queue = {
-    1234654 : {
-        "Main": [1234654, 56789, 65798], 
-        "School": "KSU"
+'''
+priority:
+
+0 - pros
+1 - collegiate
+2 - registered team
+3 - open team
+
+'''
+
+queue_database = {
+    "p0": {},
+    "p1": {},
+    "p2": {},
+    "p3": {}
+}
+
+lobbies_database = {
+    1 : {
+        "<@327422276473454592>" : {
+            "Group": "KSU",
+            "Team": "Gold",
+            "Players": [f"<@{327422276473454592}>", 389897757550444545, 290483206610747392]
+        }
     }
 }
 
-lobbies = {
-    1 : [[1234654],]
-}
-
-school_database = {
+group_database = {
     "KSU" : {
         "Black" : [
-            1, 
+            1, #priority
+            0, #elo
+            [f"<@{221752443245953024}>", f"<@{346750457731088404}>", f"<@{393584820912914432}>"] #possible players
+        ],
+        "Gold": [
             2,
-            [1234654, 56789, 568745]
+            0,
+            [f"<@{327422276473454592}>", f"<@{389897757550444545}>", f"<@{290483206610747392}>"]
         ]
     }
 }
 
-admins = []
+admin_database = ["<@327422276473454592>"]
+
+def getPriority(group, team):
+    if group in group_database and team in group_database[group]:
+        return group_database[group][team][0]
+    return 3
+
+def embeded_school(group):
+    #create the embed
+    dictionary = group_database[group]
+    title = group
+    embed = discord.Embed(title=title, color=discord.Color.red()) 
+    for team, info in group_database[group].items():
+        players = ""
+        for player in info[2]:
+            players += f"{player}\n"
+            
+        embed.add_field(name=f"{team}", value=players)
+    
+    #send the embed
+    return embed
+
+def embeded_team(team):
+    #create the embed
+    embed = discord.Embed(color=discord.Color.red()) 
+    players = ""
+    for player in team["Players"]:
+        players += f"{player}\n"
+            
+    embed.add_field(name=(team["Group"] + " " + team["Team"]), value=players)
+    
+    #send the embed
+    return embed
 
 # Non-Admin Commands
 @bot.command()
-async def get(ctx, captain):
+async def get(ctx, target, identifier=""):
     #returns the team of the captain and all participating players
     # this would be used for a quick check to see if a certain discord user who claims to be playing, really is (in-case of uncertainty)
     # once again, if the team was set by an admin, the captain will default to the first person in the list of players added
     
     found = False
-    
-    if type(captain) != int:
-        captain = captain.id
+
+    if target == "team":
+        captain = f"<@{ctx.author.id}>"
+        if identifier.find("<@") == -1:
+            captain = f"<@{identifier}>"
         
-    if captain in in_queue:
-        print(in_queue[captain])
-        found = True
+        for priority, queue in queue_database.items():
+            if captain in list(queue.keys()):
+                found = True
+                await ctx.send(embed=embeded_team(queue[captain]))
+            
         
-    for lobby in lobbies:
-        if captain in lobby:
-            print(lobby[captain])
+        if not found:
+            for _, lobby in lobbies_database.items():
+                if captain in list(lobby.keys()):
+                    found = True
+                    await ctx.send(embed=embeded_team(lobby[captain]))
+                    break
+        
+        if not found:
+            await ctx.send("couldn't find team")
+            
+    elif target == "group":
+        if identifier in group_database:
             found = True
-            break
+            await ctx.send(embed=embeded_school(identifier))
+        
+        if not found:
+            await ctx.send("couldn't find group")
     
-    if not found:
-        print("couldn't find team")
-    
-    pass
+    elif target == "admins":
+        #create the embed
+        embed = discord.Embed(color=discord.Color.red()) 
+        adms = ""
+        for admin in admin_database:
+            adms += f"{admin}\n"
+                
+        embed.add_field(name="Admins", value=adms)
+        
+        #send the embed
+        await ctx.send(embed=embed)
 
 @bot.command()
-async def add(ctx, school, team, *players):
+async def add(ctx, group, team, *players):
     #add their team to the queue
     
-    in_queue[ctx.author.id] = {
-        ["Players"] : [],
-        ["School"] : school,
-        ["Team"] : team,
+    captain = f"<@{ctx.author.id}>"
+    priority = getPriority(group, team)
+    
+    queue_database[f"p{priority}"][captain] = {
+        "Players" : [],
+        "Group" : group,
+        "Team" : team,
     }
     
     for player in players:
-        if type(player) == int:
-            #assuming that they directly put their userid in
-            in_queue[ctx.author.id]["Players"].append(player)
+        if player.find("<@") == -1:
+            player = f"<@{player}>"
+        
+        #for non-registered teams
+        if group.lower() == "open":
+            queue_database[f"p{priority}"][captain]["Players"].append(player)
+        
+        #for registered teams
+        elif player in group_database[group][team][2]:
+            queue_database[f"p{priority}"][captain]["Players"].append(player)
+            
         else:
-            #for when the use @thelegend27
-            in_queue[ctx.author.id]["Players"].append(player.id)
+            await ctx.send(f"{player} is not registered on the team.")
     
-    #sending for test purposes
-    ctx.send(in_queue[ctx.author.id])
-    
-    pass
+    await ctx.send(embed=embeded_team(queue_database[f"p{priority}"][captain]))
 
 @bot.command()
 async def drop(ctx):
     #drop the team from the queue
     
     removed = False
+    captain = f"<@{ctx.author.id}>"
     try:
-        del in_queue[ctx.author]
-    except KeyError:
-        for num, contestants in lobbies.items():
+        for _, queue in queue_database.items():
             try:
-                del contestants[ctx.author]
+                del queue[captain]
                 removed = True
+                await ctx.send(f"{captain}'s team has been removed")
+            except KeyError:
+                pass
+                
+    except KeyError:
+        for _, contestants in lobbies_database.items():
+            try:
+                del contestants[captain]
+                removed = True
+                await ctx.send(f"{captain}'s team has been removed")
                 break
             except KeyError:
                 pass
     
     if not removed:
-        print("couldn't find team")
-        
-    pass
-
-bot.add_command(get)
-bot.add_command(add)
-bot.add_command(drop)
+        await ctx.send("couldn't find team")
 
 # Admin Commands
 @bot.command()
-async def register(ctx, school, team, *players):
-    # it will add the school if it doesn't exist, otherwise it will just append the team to their registered teams
-    
-    if not school_database.find(school):
-        school_database[school] = {
-            team : [
-                -1, 
-                -1, 
-                []
-            ],
-        }
-        
-    else:
-        school_database[school][team] = [
-            -1, #priority
-            -1, #weight class (metaphor)
-            [] #players
-        ]
-        
-    for player in players:
-        if type(player) == int:
-            #assuming that they directly put their userid in
-            school_database[school][team][2].append(player)
-            print(f"{player} added")
+async def register(ctx, group, team, *players):
+    # it will add the group if it doesn't exist, otherwise it will just append the team to their registered teams
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        if group in group_database: #if it didn't find the group
+            group_database[group][team] = [
+                2, #priority
+                100, #elo
+                [] #players
+            ]
         else:
-            #for when the use @thelegend27
-            school_database[school][team][2].append(player.id)
-            print(f"{player.id} added")
-    
-    #sending for test purposes
-    ctx.send(school_database[school])
-    
-    pass
-
-@bot.command()
-async def remove(ctx, school, team):
-    # if the team paramater is filled, then it will only remove that team from the school, not the whole school
-    # leave the team paramater blank if you want to remove the whole school
-        
-    if school in school_database:
-        if team == "":
-            del school_database[school]
-            print("school removed")
-        else:
-            if team in school_database[school]:
-                del school_database[school][team]
-                print("team removed")
+            group_database[group] = {
+                team : [
+                    2, 
+                    100, 
+                    []
+                ]
+            }
+            
+        for player in players:
+            if player.find("@") == -1:
+                #for when the use @thelegend27
+                player = f"<@{player}>"
+                group_database[group][team][2].append(player)
+                await ctx.send(f"{player} added")
             else:
-                print("team not found")
-    
-    pass
+                #assuming that they directly put their userid in
+                group_database[group][team][2].append(player)
+                await ctx.send(f"{player} added")
+
+        #send the embed
+        await ctx.send(embed=embeded_school(group))
 
 @bot.command()
-async def fadd(ctx, school, team, *players):
+async def remove(ctx, group, team):
+    # if the team paramater is filled, then it will only remove that team from the group, not the whole group
+    # leave the team paramater blank if you want to remove the whole group
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        if group in group_database:
+            if team == "":
+                del group_database[group]
+                print("group removed")
+            else:
+                if team in group_database[group]:
+                    del group_database[group][team]
+                    print("team removed")
+                else:
+                    print("team not found")
+
+@bot.command()
+async def fadd(ctx, group, team, *players):
     #force add a team to the queue
     
-    captain = ctx.author.id
-    
-    if type(players[0]) == int:
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
         captain = players[0]
-    else:
-        captain = players[0].id
-    
-    in_queue[captain] = {
-        ["Players"] : [],
-        ["School"] : school,
-        ["Team"] : team,
-    }
-    
-    for player in players:
-        if type(player) == int:
-            #assuming that they directly put their userid in
-            in_queue[captain]["Players"].append(player)
-        else:
-            #for when the use @thelegend27
-            in_queue[captain]["Players"].append(player.id)
-    
-    #sending for test purposes
-    ctx.send(in_queue[captain])
-    
-    pass
+        priority = getPriority(group, team)
+        
+        if players[0].find("<@") == -1:
+            captain = f"<@{players[0]}>"           
+        
+        queue_database[f"p{priority}"][captain] = {
+            "Players" : [],
+            "Group" : group,
+            "Team" : team,
+        }
+        
+        for player in players:
+            if player.find("<@") == -1:
+                player = f"<@{player}>"
+            
+            #for non-registered teams
+            if group.lower() == "open":
+                queue_database[f"p{priority}"][captain]["Players"].append(player)
+            
+            #for registered teams
+            elif player in group_database[group][team][2]:
+                queue_database[f"p{priority}"][captain]["Players"].append(player)
+                
+            else:
+                await ctx.send(f"{player} is not registered on the team.")
+        
+        await ctx.send(embed=embeded_team(queue_database[f"p{priority}"][captain]))
 
 @bot.command()
 async def fdrop(ctx, captain):
@@ -199,66 +288,134 @@ async def fdrop(ctx, captain):
     #the captain paramater should be the user who added them to the queue through the !add command, otherwise it is the first player in their team
         #ex. !fadd KSU Black @user1 @user2 @user3
         #since there is no team capatin (they were added by an admin) it would default to user1
+    
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
         
-    captain = ctx.author.id
-    
-    if type(captain) != int:
-        captain = captain.id
-    
-    removed = False
-    try:
-        del in_queue[captain]
-    except KeyError:
-        for num, contestants in lobbies.items():
-            try:
-                del contestants[captain]
-                removed = True
-                break
-            except KeyError:
-                pass
-    
-    if not removed:
-        print("couldn't find team")
-    
-    pass
+        removed = False
+        if captain.find("<@") == -1:
+            captain = f"<@{captain}>"
+
+        try:
+            for _, queue in queue_database.items():
+                try:
+                    del queue[captain]
+                    removed = True
+                    await ctx.send(f"{captain}'s team has been removed")
+                except KeyError:
+                    pass
+                    
+        except KeyError:
+            for _, contestants in lobbies_database.items():
+                try:
+                    del contestants[captain]
+                    removed = True
+                    await ctx.send(f"{captain}'s team has been removed")
+                    break
+                except KeyError:
+                    pass
+        
+        if not removed:
+            await ctx.send("couldn't find team")
 
 @bot.command()
 async def roll(ctx):
-    #begins the lobby assignments (gives lobby 1, 2 or 3 role)
-    pass
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        #group_database = group_database #so we don't fetch it a whole bunch
+        priority = 0
+        for lobby in lobbies_database:
+            while len(lobby) < 20:
+                for captain, team in queue_database[f"p{priority}"].items():
+                    lobby[captain] = team
+                    del queue_database[f"p{priority}"][captain]
+                    
+                    #if the lobby is full, then break out of the loop
+                    if len(lobby) >= 20:
+                        break
+                
+                #only increase the priority number if all the teams in the priority have been assigned a lobby
+                if len(lobby) < 20:
+                    priority += 1
+            
+            #assign their lobby role
 
 @bot.command()
 async def op(ctx, user):
     #allows the specified user to use admin commands
-    
-    if ctx.author.id in admins:
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        if user.find("<@") == -1:
+            user = f"<@{user}>"
         
-        if type(user) != int:
-            user = user.id
-        
-        admins.append(user)
-        
-    pass
+        admin_database.append(user)
 
 @bot.command()
 async def deop(ctx, user):
     #disallows the specified user from using admin commands
-    
-    if ctx.author.id in admins:
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        if user.find("<@") == -1:
+            user = f"<@{user}>"
         
-        if type(user) != int:
-            user = user.id
+        admin_database.remove(user)
         
-        admins.remove(user)
-    
-    pass
+@bot.command()
+async def setPriority(ctx, group, team, priority):
+    #sets the specified teams priority
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        if group in group_database and team in group_database[group]:
+            group_database[group][team][0] = priority
+        else:
+            await ctx.send("No registered group / team found")
 
-bot.add_command(register)
-bot.add_command(remove)
-bot.add_command(fadd)
-bot.add_command(fdrop)
-bot.add_command(roll)
-bot.add_command(op)
-bot.add_command(deop)
+@bot.command()
+async def setElo(ctx, group, team, elo):
+    #sets the specified teams elo
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        if group in group_database and team in group_database[group]:
+            group_database[group][team][1] = elo
+        else:
+            await ctx.send("No registered group / team found")
+            
+@bot.command()
+async def placeTeam(group, team, place):
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        if group in list(group_database.keys()) and team in list(group_database[group].keys()):
+            group_database[group][team][1] += elo_gains[place+1]
+        return 100
 
-bot.run(TOKEN)
+@bot.command()
+async def incrementElo(group, team, elo):
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        if group in list(group_database.keys()) and team in list(group_database[group].keys()):
+            group_database[group][team][1] += elo
+        return 100
+
+@bot.command()
+async def resetElo(ctx):
+    #mass resets all elo back to 100 default
+    admin = f"<@{ctx.author.id}>"
+    if admin in admin_database:
+        for _, group in group_database.items():
+            for team in group:
+                team[1] = 100
+
+@bot.command()
+async def replace(ctx, target, group, team, player, sub):
+    #replaces the player with sub when in a lobby
+    captain = f"<@{ctx.author.id}>"
+    if captain in admin_database:
+        if target.lower() == "player":
+            if group in group_database and team in group_database[group]:
+                group_database[group][team][1] = elo
+            else:
+                await ctx.send("No registered group / team found")
+        elif target.lower() == "team":
+            pass
+
+bot.run(DISCORD_TOKEN)
