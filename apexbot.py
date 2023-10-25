@@ -55,7 +55,7 @@ group_database = {
 
 admin_database = ["<@327422276473454592>"]
 
-def getPriority(group, team):
+def get_priority(group, team):
     if group in group_database and team in group_database[group]:
         return group_database[group][team][0]
     return 3
@@ -142,7 +142,7 @@ async def add(ctx, group, team, *players):
     #add their team to the queue
     
     captain = f"<@{ctx.author.id}>"
-    priority = getPriority(group, team)
+    priority = get_priority(group, team)
     
     queue_database[f"p{priority}"][captain] = {
         "Players" : [],
@@ -254,7 +254,7 @@ async def fadd(ctx, group, team, *players):
     admin = f"<@{ctx.author.id}>"
     if admin in admin_database:
         captain = players[0]
-        priority = getPriority(group, team)
+        priority = get_priority(group, team)
         
         if players[0].find("<@") == -1:
             captain = f"<@{players[0]}>"           
