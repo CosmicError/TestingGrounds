@@ -29,11 +29,11 @@ queue_database = {
 }
 
 lobbies_database = {
-    1 : {
+    0 : {
         "<@327422276473454592>" : {
             "Group": "KSU",
             "Team": "Gold",
-            "Players": [f"<@{327422276473454592}>", 389897757550444545, 290483206610747392]
+            "Players": [f"<@{327422276473454592}>", f"<@{389897757550444545}>", f"<@{290483206610747392}>"]
         }
     }
 }
@@ -323,22 +323,39 @@ async def roll(ctx):
     admin = f"<@{ctx.author.id}>"
     if admin in admin_database:
         #group_database = group_database #so we don't fetch it a whole bunch
+        
+        #create all the lobbies needed
+        total_teams = 0
+        total_lobby_elo = {0:0}
+        total_lobby_teams = {0:0}
+        for _, queue in queue_database.items():
+            queue += len(queue)
+        
+        for i in range(total_teams//20):
+            #create lobbies as needed
+            lobbies_database[i] = {}
+            total_lobby_elo[i] = 0
+            total_lobby_teams[i] = 0
+        
         priority = 0
-        for lobby in lobbies_database:
-            while len(lobby) < 20:
-                for captain, team in queue_database[f"p{priority}"].items():
-                    lobby[captain] = team
-                    del queue_database[f"p{priority}"][captain]
-                    
-                    #if the lobby is full, then break out of the loop
-                    if len(lobby) >= 20:
-                        break
+        for priority, queue in queue_database.items():
+            for captain, team in queue.items():
+                lowest_lobby_num = 0
+                lowest_lobby_avg_elo = 0
                 
-                #only increase the priority number if all the teams in the priority have been assigned a lobby
-                if len(lobby) < 20:
-                    priority += 1
-            
-            #assign their lobby role
+                for lobby_num, elo in total_lobby_elo.items():
+                    next_lobby_average_elo = total_lobby_elo[lobby_num]/total_lobby_teams[lobby_num]
+                    
+                    if next_lobby_average_elo <= lowest_lobby_avg_elo:
+                        lowest_lobby_avg_elo = total_lobby_elo[lowest_lobby_num]/total_lobby_teams[lowest_lobby_num]
+                        lowest_lobby_num = lobby_num
+                
+                lobbies_database[lowest_lobby_num][captain] = team
+                del queue[captain]
+                
+                if len(total_lobby_teams[lowest_lobby_num]) >= 20:
+                    del total_lobby_elo[lowest_lobby_num]
+                    del total_lobby_teams[lowest_lobby_num]
 
 @bot.command()
 async def op(ctx, user):
