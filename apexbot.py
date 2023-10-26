@@ -1,6 +1,11 @@
 
-#TODO: disallow 2 groups / teams from having the same name
-#TODO: mass allow updating by reading from a database and updating it based on that (csv goes to database that the bot reads and updates values based on it)
+#TODO: make it read the groups from a database
+#TODO: make it read the admins from a database
+
+#TODO: Come up with idea on how to allow mass updating from a csv sheet
+# IDEAS:
+    #mass allow updating by reading from a database and updating it based on that 
+        #(csv goes to database that the bot reads and updates values based on it)
 
 import os
 import discord
@@ -18,11 +23,12 @@ elo_gains = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -
 '''
 priority:
 
-0 - pros
-1 - collegiate
-2 - registered team
-3 - open team
+0 - registed collegiate team
+1 - non registered collegiate team
+2 - open team
 
+
+scrapped - team of random collegiate players
 '''
 
 queue_database = {
@@ -51,7 +57,7 @@ group_database = {
             100,
             [f"<@{327422276473454592}>", f"<@{389897757550444545}>", f"<@{290483206610747392}>"]
         ]
-    }
+    },
 }
 
 admin_database = ["<@393584820912914432>"]
@@ -193,10 +199,29 @@ async def drop(ctx):
         for name, players in team.items():
             if requester in players:
                 del team[name]
+                t = team.replace("-", " ")
                 await ctx.send(f"{t} has been removed")
                 return
         
     await ctx.send("couldn't find team")
+
+@bot.command()
+async def leaderboard(ctx):
+    #display the leaderboard
+    teams = {}
+    
+    
+    title = f"Leaderboard"
+    embed = discord.Embed(color=discord.Color.red()) 
+    
+    for elo, name in teams.items():
+        n = name.replace('-', ' ')
+        team += f"{n} - {elo}\n"
+        
+    embed.add_field(name=f"{title}", value=team)
+    
+    #send the embed
+    await ctx.send(embed=embed)
 
 # Admin Commands
 @bot.command()
@@ -362,12 +387,11 @@ async def roll(ctx):
                     lobby_elo[smallest_lobby_index] += 100
                 
                 if lobby_count[smallest_lobby_index] >= 20:
-                    del lobby_elo[smallest_lobby_index]
                     del lobby_count[smallest_lobby_index]
                     
         #show lobbies
         for lobby, teams in lobbies_database.items():
-            title = f"Lobby {lobby+1}"
+            title = f"Lobby {lobby+1} - {lobby_elo[lobby]/len(teams)}"
             embed = discord.Embed(title=title, color=discord.Color.red()) 
             
             for name, team in teams.items():
@@ -462,7 +486,7 @@ async def replacePlayer(ctx, player1, player2):
         await ctx.send(f"No player found.")
 
 @bot.command()
-async def replaceTeam(ctx, group1, team1, group2="", team2="", *new_players):
+async def replaceTeam(ctx, group1, team1, group2, team2, *new_players):
     admin = f"<@{ctx.author.id}>"
     if admin in admin_database:
         #searched for the target (target team captain) in the lobby and ->
