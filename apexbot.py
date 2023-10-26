@@ -1,5 +1,5 @@
 
-#TODO: finish the replace command
+#TODO: disallow 2 groups / teams from having the same name
 #TODO: mass allow updating by reading from a database and updating it based on that (csv goes to database that the bot reads and updates values based on it)
 
 import os
@@ -27,33 +27,35 @@ priority:
 
 queue_database = {
     "p0": {},
-    "p1": {},
+    "p1": {
+        "KSU-Gold" : [f"<@{327422276473454592}>", f"<@{389897757550444545}>", f"<@{290483206610747392}>"],
+        "KSU-Black" : [f"<@{221752443245953024}>", f"<@{346750457731088404}>", f"<@{393584820912914432}>"]
+    },
     "p2": {},
     "p3": {}
 }
 
 lobbies_database = {
-    0 : {
-        "KSU-Gold" : [f"<@{327422276473454592}>", f"<@{389897757550444545}>", f"<@{290483206610747392}>"],
-    }
+    0 : {}
 }
 
 group_database = {
     "KSU" : {
         "Black" : [
             1, #priority
-            0, #elo
+            100, #elo
             [f"<@{221752443245953024}>", f"<@{346750457731088404}>", f"<@{393584820912914432}>"] #possible players
         ],
         "Gold": [
             2,
-            0,
+            100,
             [f"<@{327422276473454592}>", f"<@{389897757550444545}>", f"<@{290483206610747392}>"]
         ]
     }
 }
 
-admin_database = ["<@327422276473454592>"]
+admin_database = ["<@393584820912914432>"]
+admin_database.append("<@327422276473454592>") #! 3rd party developer, delete line if officially using it
 
 def get_priority(group, team):
     if group in group_database and team in group_database[group]:
@@ -139,6 +141,20 @@ async def get(ctx, target, group, team=""):
 async def add(ctx, group, team, *players):
     #add their team to the queue
     
+    #check for a duplicate name in the queue
+    for priority, teams in queue_database.items():
+        for name, _ in teams.items():
+            if f"{group}-{team}".lower() == name.lower():
+                await ctx.send("Can't have 2 teams with the same name")
+                return
+    
+    #check for a duplicate name in the lobbies
+    for lobby, teams in lobbies_database.items():
+        for name, _ in teams.items():
+            if f"{group}-{team}".lower() == name.lower():
+                await ctx.send("Can't have 2 teams with the same name")
+                return
+            
     priority = get_priority(group, team)
     queue_database[f"p{priority}"][f"{group}-{team}"] = []
     
@@ -148,11 +164,11 @@ async def add(ctx, group, team, *players):
         
         #for non-registered teams
         if group.lower() == "open":
-            queue_database[f"p{priority}"][f"{group}-{team}"]["Players"].append(player)
+            queue_database[f"p{priority}"][f"{group}-{team}"].append(player)
         
         #for registered teams
         elif player in group_database[group][team][2]:
-            queue_database[f"p{priority}"][f"{group}-{team}"]["Players"].append(player)
+            queue_database[f"p{priority}"][f"{group}-{team}"].append(player)
             
         else:
             await ctx.send(f"{player} is not registered on the team.")
@@ -299,36 +315,70 @@ async def roll(ctx):
         
         #create all the lobbies needed
         total_teams = 0
-        total_lobby_elo = {0:0}
-        total_lobby_teams = {0:0}
+        lobby_elo = {0:0}
+        lobby_count = {0:0}
         for _, queue in queue_database.items():
-            queue += len(queue)
+            total_teams += len(queue)
         
         for i in range(total_teams//20):
             #create lobbies as needed
+            print("new lobby")
             lobbies_database[i] = {}
-            total_lobby_elo[i] = 0
-            total_lobby_teams[i] = 0
+            lobby_elo[i] = 0
+            lobby_count[i] = 0
         
         priority = 0
         for priority, queue in queue_database.items():
-            for captain, team in queue.items():
-                lowest_lobby_num = 0
-                lowest_lobby_avg_elo = 0
-                
-                for lobby_num, elo in total_lobby_elo.items():
-                    next_lobby_average_elo = total_lobby_elo[lobby_num]/total_lobby_teams[lobby_num]
+            while len(queue) > 0:
+                n = ""
+                for name, team in queue.items():
+                    smallest_lobby_index = 0
+                    lowest_lobby_avg_elo = 0
                     
-                    if next_lobby_average_elo <= lowest_lobby_avg_elo:
-                        lowest_lobby_avg_elo = total_lobby_elo[lowest_lobby_num]/total_lobby_teams[lowest_lobby_num]
-                        lowest_lobby_num = lobby_num
+                    for i, count in lobby_count.items():
+                        n = name
+                        #if the lobby is empty, then we will just default add them no matter what
+                        if count == 0:
+                            smallest_lobby_index = i
+                            break
+                                
+                        else:
+                            lobby_average_elo = lobby_elo[i]/lobby_count[i]
+                            
+                            if lobby_average_elo <= lowest_lobby_avg_elo:
+                                lowest_lobby_avg_elo = lobby_count[smallest_lobby_index]/lobby_count[smallest_lobby_index]
+                                smallest_lobby_index = i
+                    
+                lobbies_database[smallest_lobby_index][name] = team
+                del queue[name]
                 
-                lobbies_database[lowest_lobby_num][captain] = team
-                del queue[captain]
+                group, team = n.split('-')
+                lobby_count[smallest_lobby_index] += 1
                 
-                if len(total_lobby_teams[lowest_lobby_num]) >= 20:
-                    del total_lobby_elo[lowest_lobby_num]
-                    del total_lobby_teams[lowest_lobby_num]
+                if group in list(group_database.keys()) and team in list(group_database[group].keys()):
+                    lobby_elo[smallest_lobby_index] += group_database[group][team][1]
+                    
+                else:
+                    lobby_elo[smallest_lobby_index] += 100
+                
+                if lobby_count[smallest_lobby_index] >= 20:
+                    del lobby_elo[smallest_lobby_index]
+                    del lobby_count[smallest_lobby_index]
+                    
+        #show lobbies
+        for lobby, teams in lobbies_database.items():
+            title = f"Lobby {lobby+1}"
+            embed = discord.Embed(title=title, color=discord.Color.red()) 
+            
+            for name, team in teams.items():
+                players = ""
+                for player in team:
+                    players += f"{player}\n"
+                    
+                embed.add_field(name=f"{name}", value=players)
+            
+            #send the embed
+            await ctx.send(embed=embed)
 
 @bot.command()
 async def op(ctx, user):
