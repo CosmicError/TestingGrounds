@@ -18,7 +18,7 @@ intents.message_content = True
 load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 bot = commands.Bot(command_prefix='!', intents=intents)
-elo_gains = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9]
+elo_gains = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9] #1st place is the 0th index, 20th place is the 19th index
 
 '''
 priority:
@@ -147,39 +147,54 @@ async def get(ctx, target, group, team=""):
 async def add(ctx, group, team, *players):
     #add their team to the queue
     
-    #check for a duplicate name in the queue
-    for priority, teams in queue_database.items():
-        for name, _ in teams.items():
-            if f"{group}-{team}".lower() == name.lower():
-                await ctx.send("Can't have 2 teams with the same name")
-                return
-    
-    #check for a duplicate name in the lobbies
-    for lobby, teams in lobbies_database.items():
-        for name, _ in teams.items():
-            if f"{group}-{team}".lower() == name.lower():
-                await ctx.send("Can't have 2 teams with the same name")
-                return
-            
-    priority = get_priority(group, team)
-    queue_database[f"p{priority}"][f"{group}-{team}"] = []
-    
-    for player in players:
-        if player.find("<@") == -1:
-            player = f"<@{player}>"
+    if f"<@{ctx.author.id}>" in players:
+        #check for a duplicate name in the queue
+        for priority, teams in queue_database.items():
+            for name, _ in teams.items():
+                if f"{group}-{team}".lower() == name.lower():
+                    await ctx.send("Can't have 2 teams with the same name")
+                    return
         
-        #for non-registered teams
-        if group.lower() == "open":
-            queue_database[f"p{priority}"][f"{group}-{team}"].append(player)
-        
-        #for registered teams
-        elif player in group_database[group][team][2]:
-            queue_database[f"p{priority}"][f"{group}-{team}"].append(player)
+        #check for a duplicate name in the lobbies
+        for lobby, teams in lobbies_database.items():
+            for name, _ in teams.items():
+                if f"{group}-{team}".lower() == name.lower():
+                    await ctx.send("Can't have 2 teams with the same name")
+                    return
+                
+        #check if any players are already in a team
+        for player in players:
+            #check to see if the player is already in a team in queue
+            for priority, teams in queue_database.items():
+                for _, plrs in teams.items():
+                    if player in plrs:
+                        return
             
-        else:
-            await ctx.send(f"{player} is not registered on the team.")
-    
-    await ctx.send(embed=embeded_team(f"{group}-{team}", queue_database[f"p{priority}"][f"{group}-{team}"]))
+            #check to see if the player is already in a team in a lobby
+            for lobby, teams in lobbies_database.items():
+                for _, plrs in teams.items():
+                    if player in plrs:
+                        return
+                
+        priority = get_priority(group, team)
+        queue_database[f"p{priority}"][f"{group}-{team}"] = []
+        
+        for player in players:
+            if player.find("<@") == -1:
+                player = f"<@{player}>"
+            
+            #for non-registered teams
+            if group.lower() == "open":
+                queue_database[f"p{priority}"][f"{group}-{team}"].append(player)
+            
+            #for registered teams
+            elif player in group_database[group][team][2]:
+                queue_database[f"p{priority}"][f"{group}-{team}"].append(player)
+                
+            else:
+                await ctx.send(f"{player} is not registered on the team.")
+        
+        await ctx.send(embed=embeded_team(f"{group}-{team}", queue_database[f"p{priority}"][f"{group}-{team}"]))
 
 @bot.command()
 async def drop(ctx):
@@ -326,7 +341,7 @@ async def fadd(ctx, group, team, *players):
         await ctx.send(embed=embeded_team(f"{group}-{team}", queue_database[f"p{priority}"][f"{group}-{team}"]))
 
 @bot.command()
-async def fdrop(ctx, player):
+async def fdrop(ctx, group, team):
     #force drop a team from the queue
     #the captain paramater should be the user who added them to the queue through the !add command, otherwise it is the first player in their team
         #ex. !fadd KSU Black @user1 @user2 @user3
@@ -334,25 +349,20 @@ async def fdrop(ctx, player):
     
     admin = f"<@{ctx.author.id}>"
     if admin in admin_database:
-        
-        removed = False
-        if player.find("<@") == -1:
-            player = f"<@{player}>"
     
         for _, queue in queue_database.items():
-            for team, players in queue.items():
-                if player in players:
-                    del queue[team]
-                    t = team.replace("-", " ")
-                    await ctx.send(f"{t} has been removed")
-                    return
+            if f"{group}-{team}" in queue:
+                del queue[f"{group}-{team}"]
+                t = team.replace("-", " ")
+                await ctx.send(f"{t} has been removed")
+                return
                     
-        for priority, team in lobbies_database.items():
-            for name, players in team.items():
-                if player in players:
-                    del team[name]
-                    await ctx.send(f"{t} has been removed")
-                    return
+        for priority, teams in lobbies_database.items():
+            if f"{group}-{team}" in teams:
+                del teams[f"{group}-{team}"]
+                t = team.replace("-", " ")
+                await ctx.send(f"{t} has been removed")
+                return
             
         await ctx.send("couldn't find team")
 
@@ -371,7 +381,6 @@ async def roll(ctx):
         
         for i in range(total_teams//20):
             #create lobbies as needed
-            print("new lobby")
             lobbies_database[i] = {}
             lobby_elo[i] = 0
             lobby_count[i] = 0
