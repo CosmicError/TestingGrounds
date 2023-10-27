@@ -49,7 +49,7 @@ group_database = {
     "KSU" : {
         "Black" : [
             1, #priority
-            100, #elo
+            120, #elo
             [f"<@{221752443245953024}>", f"<@{346750457731088404}>", f"<@{393584820912914432}>"] #possible players
         ],
         "Gold": [
@@ -210,15 +210,18 @@ async def leaderboard(ctx):
     #display the leaderboard
     teams = {}
     
+    for group_name, group_info in group_database.items():
+        for team_name, team_info in group_info.items():
+            teams[f"{group_name} {team_name}"] = team_info[1]
     
     title = f"Leaderboard"
     embed = discord.Embed(color=discord.Color.red()) 
+    s = ""
     
-    for elo, name in teams.items():
-        n = name.replace('-', ' ')
-        team += f"{n} - {elo}\n"
+    for name, elo in sorted(teams.items(), key=lambda x:x[1], reverse=True):
+        s += f"{name} - {elo}\n"
         
-    embed.add_field(name=f"{title}", value=team)
+    embed.add_field(name=title, value=s)
     
     #send the embed
     await ctx.send(embed=embed)
@@ -431,8 +434,8 @@ async def setPriority(ctx, group, team, priority):
     if admin in admin_database:
         if group in group_database and team in group_database[group]:
             group_database[group][team][0] = priority
-        else:
-            await ctx.send("No registered group / team found")
+            return
+        await ctx.send("No registered group / team found")
 
 @bot.command()
 async def setElo(ctx, group, team, elo):
@@ -441,8 +444,8 @@ async def setElo(ctx, group, team, elo):
     if admin in admin_database:
         if group in group_database and team in group_database[group]:
             group_database[group][team][1] = elo
-        else:
-            await ctx.send("No registered group / team found")
+            return
+        await ctx.send("No registered group / team found")
             
 @bot.command()
 async def placeTeam(group, team, place):
@@ -450,7 +453,6 @@ async def placeTeam(group, team, place):
     if admin in admin_database:
         if group in list(group_database.keys()) and team in list(group_database[group].keys()):
             group_database[group][team][1] += elo_gains[place+1]
-        return 100
 
 @bot.command()
 async def incrementElo(group, team, elo):
@@ -458,16 +460,15 @@ async def incrementElo(group, team, elo):
     if admin in admin_database:
         if group in list(group_database.keys()) and team in list(group_database[group].keys()):
             group_database[group][team][1] += elo
-        return 100
 
 @bot.command()
 async def resetElo(ctx):
     #mass resets all elo back to 100 default
     admin = f"<@{ctx.author.id}>"
     if admin in admin_database:
-        for _, group in group_database.items():
-            for team in group:
-                team[1] = 100
+        for _, group_info in group_database.items():
+            for _, team_info in group_info.items():
+                team_info[1] = 100
 
 @bot.command()
 async def replacePlayer(ctx, player1, player2):
