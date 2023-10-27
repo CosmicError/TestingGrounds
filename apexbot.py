@@ -218,13 +218,34 @@ async def leaderboard(ctx):
     embed = discord.Embed(color=discord.Color.red()) 
     s = ""
     
-    for name, elo in sorted(teams.items(), key=lambda x:x[1], reverse=True):
+    for name, elo in sorted(teams.items(), key=lambda x:x[1], reverse=True)[:10]:
         s += f"{name} - {elo}\n"
         
     embed.add_field(name=title, value=s)
     
     #send the embed
     await ctx.send(embed=embed)
+
+@bot.command()
+async def stats(ctx, group, team):
+    #display the leaderboard
+    
+    if group in group_database and team in group_database[group]:
+        embed = discord.Embed(title=f"{group} {team}", color=discord.Color.red()) 
+        
+        s = f"Priority: {group_database[group][team][0]}\nElo: {group_database[group][team][1]}"
+        embed.add_field(name="Stats", value=s)
+        
+        s = ""
+        for player in group_database[group][team][2]:
+            s += f"{player}\n"
+            
+        embed.add_field(name="Players", value=s)
+        
+        #send the embed
+        await ctx.send(embed=embed)
+        return
+    await ctx.send(f"No group / team found")
 
 # Admin Commands
 @bot.command()
