@@ -26,9 +26,6 @@ priority:
 0 - registed collegiate team
 1 - non registered collegiate team
 2 - open team
-
-
-scrapped - team of random collegiate players
 '''
 
 queue_database = {
@@ -60,8 +57,7 @@ group_database = {
     },
 }
 
-admin_database = ["<@393584820912914432>"]
-admin_database.append("<@327422276473454592>") #! 3rd party developer, delete line if officially using it
+admin_database = ["<@327422276473454592>", "<@393584820912914432>"]
 
 def get_priority(group, team):
     if group in group_database and team in group_database[group]:
@@ -243,7 +239,7 @@ async def leaderboard(ctx):
 
 @bot.command()
 async def stats(ctx, group, team):
-    #display the leaderboard
+    #display stats
     
     if group in group_database and team in group_database[group]:
         embed = discord.Embed(title=f"{group} {team}", color=discord.Color.red()) 
