@@ -5,27 +5,27 @@ def hydrophone_triangulation(t2, t1, t3):
     #left_angle = 60 # will be used when i update this not to be equilateral triangle only
     #right_angle = 60 # will be used when i update this not to be equilateral triangle only
     true_heading = 1 #? set it as 1 here so we can set a negative based on the detected quadrant
-    d2h = ...
+    d2h = 1500
     
     if t1 >= t2:
         if t2 >= t3:
             # Quadrant 1 #? Center of the 3 hydrophones is the origin point (0, 0)
-            d2h = 1500*t1 - 1500*t3
+            d2h *= (t1 - t3)
             
         elif t3 > t2:
             # Quadrant 3
             true_heading *= -1
-            d2h = 1500*t3 - 1500*t2
+            d2h *= (t3 - t2)
             
     else:
         if t2 > t3:
             # Quadrant 4
-            d2h = 1500*t2 - 1500*t3
+            d2h *= (t2 - t3)
             
         elif t3 > t2:
             # Quadrant 2
             true_heading *= -1
-            d2h = 1500*t3 - 1500*t1
+            d2h *= (t3 - t1)
     
     #Calculate source heading
     d2h = abs(d2h) #The distance between each hydrophone (assuming they're all equal distance apart)
